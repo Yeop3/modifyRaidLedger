@@ -36,7 +36,7 @@ local function GetRosterNumber()
     return #all
 end
 
-local function getCurrentRaidList()
+function GUI:getCurrentRaidList(self)
 
     local raidTradeList = {}
 
@@ -49,7 +49,7 @@ local function getCurrentRaidList()
             0
         })
     end
-    return raidTradeList
+    self.testFrame:SetData(raidTradeList,true)
 end
 
 local function RemoveAll(item)
@@ -1003,6 +1003,7 @@ function GUI:Init()
         b:SetPoint("BOTTOMLEFT", f, 360, 60)
         b:SetText(L["Trade"])
         b:SetScript("OnClick", function()
+            GUI:getCurrentRaidList(self)
             self.tradeTest:Show()
         end)
     end
@@ -1037,7 +1038,81 @@ function GUI:Init()
         end
 
         do
-            local list = getCurrentRaidList()
+
+            local bonusUpdate = CreateCellUpdate(function(cellFrame, entry)
+                if not (cellFrame.textBox) then
+                    cellFrame.textBox = CreateFrame("EditBox", nil, cellFrame, "InputBoxTemplate")
+                    cellFrame.textBox:SetPoint("CENTER", cellFrame, "CENTER")
+                    cellFrame.textBox:SetWidth(70)
+                    cellFrame.textBox:SetHeight(30)
+                    -- cellFrame.textBox:SetNumeric(true)
+                    cellFrame.textBox:SetAutoFocus(false)
+                    cellFrame.textBox:SetMaxLetters(10)
+                    cellFrame.textBox:SetScript("OnChar", mustnumber)
+                    cellFrame.textBox:SetScript("OnEnterPressed", cellFrame.textBox.ClearFocus)
+                    cellFrame.textBox:SetScript("OnEscapePressed", cellFrame.textBox.ClearFocus)
+
+                end
+                cellFrame.textBox:SetText(tostring(entry["cost"] or 0))
+
+                --local type = entry["costtype"] or "GOLD"
+                --
+                --if type == "PROFIT_PERCENT" then
+                --    cellFrame.text:SetText(DIM_GREEN_FONT_COLOR:WrapTextInColorCode("%"))
+                --elseif type == "REVENUE_PERCENT" then
+                --    cellFrame.text:SetText(LIGHTBLUE_FONT_COLOR:WrapTextInColorCode("%"))
+                --elseif type == "MUL_AVG" then
+                --    cellFrame.text:SetText("*")
+                --else
+                --    -- GOLD by default
+                --    cellFrame.text:SetText(GOLD_AMOUNT_TEXTURE_STRING:format(""))
+                --end
+                --
+                --cellFrame:SetScript("OnClick", nil)
+                --cellFrame:SetScript("OnEnter", nil)
+                --
+                --if entry["type"] == "DEBIT" then
+                --    cellFrame:SetScript("OnClick", function()
+                --        valueTypeMenuCtx.entry = entry
+                --        for _, m in pairs(valueTypeMenu) do
+                --            m.checked = m.costtype == type
+                --        end
+                --
+                --        EasyMenu(valueTypeMenu, menuFrame, "cursor", 0 , 0, "MENU");
+                --    end)
+                --
+                --end
+                --
+                --if entry["costcache"] then
+                --    cellFrame:SetScript("OnEnter", function()
+                --        tooltip:SetOwner(cellFrame, "ANCHOR_RIGHT")
+                --        tooltip:SetText(GetMoneyString(entry["costcache"]))
+                --        tooltip:Show()
+                --    end)
+                --
+                --    cellFrame:SetScript("OnLeave", function()
+                --        tooltip:Hide()
+                --        tooltip:SetOwner(UIParent, "ANCHOR_NONE")
+                --    end)
+                --end
+                --
+                --cellFrame.textBox:SetScript("OnTextChanged", function(self, userInput)
+                --    local t = cellFrame.textBox:GetText()
+                --    local v = tonumber(t) or 0
+                --
+                --    if entry["cost"] == v then
+                --        return
+                --    end
+                --
+                --    if v < 0.0001 then
+                --        v = 0
+                --    end
+                --
+                --    entry["cost"] = v
+                --    GUI:UpdateLootTableFromDatabase()
+                --end)
+
+            end)
 
             local testFrame = ScrollingTable:CreateST({
                 {
@@ -1053,6 +1128,7 @@ function GUI:Init()
                 {
                     ["name"] = L["Bonus"],
                     ["align"] = "CENTER",
+                    ["DoCellUpdate"] = bonusUpdate,
                     ["width"] = 100,
                 },
                 {
@@ -1064,7 +1140,7 @@ function GUI:Init()
             testFrame.head:SetHeight(15)
             testFrame.frame:SetPoint("TOPLEFT", tradeTest, "TOPLEFT", 30, -50)
             testFrame.frame:SetHeight(600)
-            testFrame:SetData(list,true)
+            self.testFrame = testFrame
         end
 
         tradeTest:Hide()
