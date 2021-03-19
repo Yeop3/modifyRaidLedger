@@ -130,6 +130,21 @@ function db:RemoveEntry(idx)
     self:OnLedgerItemsChange()
 end
 
+function db:RemoveGarbage()
+    local again = true
+    while again do
+        again = false
+        local items = self:GetCurrentLedger()["items"]
+        for idx, entry in pairs(items or {}) do
+            if not entry["lock"] then
+                again = true
+                self:RemoveEntry(idx)
+                break
+            end
+        end
+    end
+end
+
 function db:AddCredit(reason, beneficiary, cost)
     self:AddEntry(TYPE_CREDIT, {
         ["displayname"] = reason

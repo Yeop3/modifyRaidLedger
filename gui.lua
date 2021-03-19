@@ -36,14 +36,6 @@ local function GetRosterNumber()
     return #all
 end
 
-function GUI:RemoveAllUncommitedRecords()
-    for id, item in pairs(Database:GetCurrentLedger()["items"]) do
-
-        if not item["lock"] then
-            Database:RemoveEntry(id)
-        end
-    end
-end
 
 function GUI:getCurrentRaidList(self)
 
@@ -2497,6 +2489,6 @@ StaticPopupDialogs["RAIDLEDGER_CLEARGARBAGEMSG"] = {
     hideOnEscape = 1,
     multiple = 0,
     OnAccept = function()
-        GUI:RemoveAllUncommitedRecords()
+        Database:RemoveGarbage()
     end,
 }
