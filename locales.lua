@@ -116,6 +116,8 @@ L["Nickname"] = true
 L["Proportion"] = true
 L["Bonus"] = true
 L["TradeStatus"] = true
+L["Clear garbage"] = true
+L["Remove all uncommitted records?"] = true
 
 elseif locale == 'deDE' then
 --[[Translation missing --]]
@@ -1294,6 +1296,7 @@ L["Bid mode"] = "Режим Заявок"
 L["Bid price"] = "Цена Заявки"
 L["Cannot find any debit entry in template, please check your template in options"] = "Не удается найти ни одной дебетовой записи в шаблоне, пожалуйста, проверьте свой шаблон в настройках"
 L["Clear"] = "Очистить"
+L["Clear garbage"] = "Очистить мусор"
 L["Click here to clear ledger"] = "Нажмите здесь, чтобы очистить главную книгу"
 L["Close text export"] = "Закрыть экспорт текста"
 L["Compensation"] = "Компенсация"
@@ -1372,6 +1375,7 @@ L["Nickname"] = "Имя"
 L["Proportion"] = "Доля"
 L["Bonus"] = "Бонус"
 L["TradeStatus"] = "Статус"
+L["Remove all uncommitted records?"] = "Удалить все незафиксированные записи?"
 
 elseif locale == 'zhCN' then
 L["# line starts with # will be ignored"] = "# 以 # 开头的行自动被忽略"

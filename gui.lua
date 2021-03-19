@@ -36,6 +36,15 @@ local function GetRosterNumber()
     return #all
 end
 
+function GUI:RemoveAllUncommitedRecords()
+    for id, item in pairs(Database:GetCurrentLedger()["items"]) do
+
+        if not item["lock"] then
+            Database:RemoveEntry(id)
+        end
+    end
+end
+
 function GUI:getCurrentRaidList(self)
 
     local raidTradeList = {}
@@ -140,7 +149,6 @@ local function CreateCellUpdate(cb)
         end
 
         local entry, idx = GetEntryFromUI(rowFrame, cellFrame, data, cols, row, realrow, column, table)
-
         if entry then
             cb(cellFrame, entry, idx, rowFrame)
         end
@@ -996,17 +1004,17 @@ function GUI:Init()
     --
 
     -- trade
-    do
-        local b = CreateFrame("Button", nil, f, "GameMenuButtonTemplate")
-        b:SetWidth(70)
-        b:SetHeight(25)
-        b:SetPoint("BOTTOMLEFT", f, 360, 60)
-        b:SetText(L["Trade"])
-        b:SetScript("OnClick", function()
-            GUI:getCurrentRaidList(self)
-            self.tradeTest:Show()
-        end)
-    end
+    --do
+    --    local b = CreateFrame("Button", nil, f, "GameMenuButtonTemplate")
+    --    b:SetWidth(70)
+    --    b:SetHeight(25)
+    --    b:SetPoint("BOTTOMLEFT", f, 360, 60)
+    --    b:SetText(L["Trade"])
+    --    b:SetScript("OnClick", function()
+    --        GUI:getCurrentRaidList(self)
+    --        self.tradeTest:Show()
+    --    end)
+    --end
 
     do
         local tradeTest = CreateFrame("Frame", nil, f)
@@ -1015,7 +1023,7 @@ function GUI:Init()
         tradeTest:SetBackdrop({
             bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background",
             edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
-            -- tile = true,
+            --tile = true,
             tileSize = 32,
             edgeSize = 32,
             insets = {left = 8, right = 8, top = 10, bottom = 10}
@@ -1039,21 +1047,21 @@ function GUI:Init()
 
         do
 
-            local bonusUpdate = CreateCellUpdate(function(cellFrame, entry)
-                if not (cellFrame.textBox) then
-                    cellFrame.textBox = CreateFrame("EditBox", nil, cellFrame, "InputBoxTemplate")
-                    cellFrame.textBox:SetPoint("CENTER", cellFrame, "CENTER")
-                    cellFrame.textBox:SetWidth(70)
-                    cellFrame.textBox:SetHeight(30)
-                    -- cellFrame.textBox:SetNumeric(true)
-                    cellFrame.textBox:SetAutoFocus(false)
-                    cellFrame.textBox:SetMaxLetters(10)
-                    cellFrame.textBox:SetScript("OnChar", mustnumber)
-                    cellFrame.textBox:SetScript("OnEnterPressed", cellFrame.textBox.ClearFocus)
-                    cellFrame.textBox:SetScript("OnEscapePressed", cellFrame.textBox.ClearFocus)
-
-                end
-                cellFrame.textBox:SetText(tostring(entry["cost"] or 0))
+            --local bonusUpdate = CreateCellUpdate(function(cellFrame, entry)
+            --    if not (cellFrame.textBox) then
+            --        cellFrame.textBox = CreateFrame("EditBox", nil, cellFrame, "InputBoxTemplate")
+            --        cellFrame.textBox:SetPoint("CENTER", cellFrame, "CENTER")
+            --        cellFrame.textBox:SetWidth(70)
+            --        cellFrame.textBox:SetHeight(30)
+            --        -- cellFrame.textBox:SetNumeric(true)
+            --        cellFrame.textBox:SetAutoFocus(false)
+            --        cellFrame.textBox:SetMaxLetters(10)
+            --        cellFrame.textBox:SetScript("OnChar", mustnumber)
+            --        cellFrame.textBox:SetScript("OnEnterPressed", cellFrame.textBox.ClearFocus)
+            --        cellFrame.textBox:SetScript("OnEscapePressed", cellFrame.textBox.ClearFocus)
+            --
+            --    end
+            --    cellFrame.textBox:SetText(tostring(entry["cost"] or 0))
 
                 --local type = entry["costtype"] or "GOLD"
                 --
@@ -1112,7 +1120,7 @@ function GUI:Init()
                 --    GUI:UpdateLootTableFromDatabase()
                 --end)
 
-            end)
+            --end)
 
             local testFrame = ScrollingTable:CreateST({
                 {
@@ -1128,8 +1136,13 @@ function GUI:Init()
                 {
                     ["name"] = L["Bonus"],
                     ["align"] = "CENTER",
-                    ["DoCellUpdate"] = bonusUpdate,
+                    --["DoCellUpdate"] = bonusUpdate,
                     ["width"] = 100,
+                },
+                {
+                    ["name"] = "",
+                    ["align"] = "CENTER",
+                    ["width"] = 70,
                 },
                 {
                     ["name"] = L["TradeStatus"],
@@ -1190,22 +1203,34 @@ function GUI:Init()
     -- close btn
     do
         local b = CreateFrame("Button", nil, f, "GameMenuButtonTemplate")
-        b:SetWidth(100)
+        b:SetWidth(90)
         b:SetHeight(25)
         b:SetPoint("BOTTOMRIGHT", -40, 15)
         b:SetText(CLOSE)
         b:SetScript("OnClick", function() f:Hide() end)
     end
 
-    -- clear btn
+    -- clear all btn
     do
         local b = CreateFrame("Button", nil, f, "GameMenuButtonTemplate")
-        b:SetWidth(100)
+        b:SetWidth(90)
         b:SetHeight(25)
-        b:SetPoint("BOTTOMLEFT", 195, 15)
+        b:SetPoint("BOTTOMLEFT", 190, 15)
         b:SetText(L["Clear"])
         b:SetScript("OnClick", function()
             StaticPopup_Show("RAIDLEDGER_CLEARMSG")
+        end)
+    end
+
+    -- clear garbage btn
+    do
+        local b = CreateFrame("Button", nil, f, "GameMenuButtonTemplate")
+        b:SetWidth(120)
+        b:SetHeight(25)
+        b:SetPoint("BOTTOMLEFT", 285, 15)
+        b:SetText(L["Clear garbage"])
+        b:SetScript("OnClick", function()
+            StaticPopup_Show("RAIDLEDGER_CLEARGARBAGEMSG")
         end)
     end
 
@@ -1350,7 +1375,7 @@ function GUI:Init()
         local b = CreateFrame("Button", nil, f, "GameMenuButtonTemplate")
         b:SetWidth(100)
         b:SetHeight(25)
-        b:SetPoint("BOTTOMLEFT", 400, 15)
+        b:SetPoint("BOTTOMLEFT", 415, 15)
         b:SetText(OPTIONS)
         b:SetScript("OnClick", function()
             -- tricky may fail first time, show do twice to ensure open the panel
@@ -2461,4 +2486,17 @@ StaticPopupDialogs["RAIDLEDGER_DELETE_ITEM"] = {
     whileDead = 1,
     hideOnEscape = 1,
     multiple = 0,
+}
+
+StaticPopupDialogs["RAIDLEDGER_CLEARGARBAGEMSG"] = {
+    text = L["Remove all uncommitted records?"],
+    button1 = ACCEPT,
+    button2 = CANCEL,
+    timeout = 0,
+    whileDead = 1,
+    hideOnEscape = 1,
+    multiple = 0,
+    OnAccept = function()
+        GUI:RemoveAllUncommitedRecords()
+    end,
 }
