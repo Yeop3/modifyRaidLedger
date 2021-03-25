@@ -39,18 +39,38 @@ end
 
 function GUI:getCurrentRaidList(self)
 
+    local sortTable = function(a,b)
+        return a[2] < b[2]
+    end
+
     local raidTradeList = {}
 
     for i = 1, GetNumGroupMembers() do
         name = GetRaidRosterInfo(i)
         table.insert(raidTradeList, {
+            0,
             name,
             GetMoneyString(self.avg),
             0,
             0
         })
     end
+    table.sort(raidTradeList, sortTable)
     self.testFrame:SetData(raidTradeList,true)
+end
+
+function GUI:TradeSumForPlayer(tradeData)
+    local profit = self.avg + self.flaskCost * 100 * 100 * tradeData[4] + tradeData[5]*100*100
+
+    if not TradeFrame:IsShown() then
+        InitiateTrade(tradeData[2])
+    end
+
+    if TradeFrame:IsShown() then
+        SetTradeMoney(profit)
+    else
+        PickupPlayerMoney(profit)
+    end
 end
 
 local function RemoveAll(item)
@@ -143,6 +163,31 @@ local function CreateCellUpdate(cb)
         local entry, idx = GetEntryFromUI(rowFrame, cellFrame, data, cols, row, realrow, column, table)
         if entry then
             cb(cellFrame, entry, idx, rowFrame)
+        end
+    end
+end
+
+local function GetEntryFromUITest(rowFrame, cellFrame, data, cols, row, realrow, column, table)
+    local rowdata = table:GetRow(realrow)
+    if not rowdata then
+        return nil
+    end
+
+    local celldata = table:GetCell(rowdata, column)
+    local tradeData = rowdata
+
+    return tradeData
+end
+
+local function CreateCellUpdateTest(cb)
+    return function(rowFrame, cellFrame, data, cols, row, realrow, column, fShow, table, ...)
+        if not fShow then
+            return
+        end
+
+        local tradeData = GetEntryFromUITest(rowFrame, cellFrame, data, cols, row, realrow, column, table)
+        if tradeData then
+            cb(cellFrame, tradeData, rowFrame)
         end
     end
 end
@@ -996,22 +1041,21 @@ function GUI:Init()
     --
 
     -- trade
-    --do
-    --    local b = CreateFrame("Button", nil, f, "GameMenuButtonTemplate")
-    --    b:SetWidth(70)
-    --    b:SetHeight(25)
-    --    b:SetPoint("BOTTOMLEFT", f, 360, 60)
-    --    b:SetText(L["Trade"])
-    --    b:SetScript("OnClick", function()
-    --        GUI:getCurrentRaidList(self)
-    --        self.tradeTest:Show()
-    --    end)
-    --end
+    do
+        local b = CreateFrame("Button", nil, f, "GameMenuButtonTemplate")
+        b:SetWidth(70)
+        b:SetHeight(25)
+        b:SetPoint("BOTTOMLEFT", f, 360, 60)
+        b:SetText(L["Trade"])
+        b:SetScript("OnClick", function()
+            self.tradeTest:Show()
+        end)
+    end
 
     do
         local tradeTest = CreateFrame("Frame", nil, f)
-        tradeTest:SetWidth(560)
-        tradeTest:SetHeight(700)
+        tradeTest:SetWidth(630)
+        tradeTest:SetHeight(730)
         tradeTest:SetBackdrop({
             bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background",
             edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
@@ -1033,120 +1077,196 @@ function GUI:Init()
         tradeTest:SetFrameLevel(f:GetFrameLevel() + 10)
 
         do
+            local flaskCost = CreateFrame("EditBox", nil, tradeTest, "InputBoxTemplate")
+            flaskCost:SetPoint("TOPLEFT", tradeTest, 90, -25)
+            flaskCost:SetAutoFocus(false)
+            flaskCost:SetWidth(50)
+            flaskCost:SetHeight(30)
+            flaskCost:SetMaxLetters(10)
+            flaskCost:SetScript("OnChar", mustnumber)
+            flaskCost:SetScript("OnEnterPressed", flaskCost.ClearFocus)
+            flaskCost:SetScript("OnEscapePressed", flaskCost.ClearFocus)
+            flaskCost:SetText(0)
+            flaskCost:SetScript("OnTextChanged", function() self.flaskCost = tonumber(flaskCost:GetText()) end)
+            flaskCost.text = flaskCost:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+            flaskCost.text:SetPoint("LEFT", flaskCost, -20, 0)
+            flaskCost.text:SetText("=")
+            flaskCost.money = flaskCost:CreateFontString(nil, "OVERLAY","GameFontNormal")
+            flaskCost.money:SetText(GOLD_AMOUNT_TEXTURE_STRING:format(""))
+            flaskCost.money:SetPoint("LEFT", flaskCost, "RIGHT", 1, 0)
+            local iconFlask = tradeTest:CreateTexture(nil, 'ARTWORK')
+            iconFlask:SetTexture(134842)
+            iconFlask:SetPoint("TOPLEFT", 35, -28)
+            iconFlask:SetSize(25, 25)
+        end
+
+        do
+            local updateRaidList = CreateFrame("Button", nil, tradeTest, "GameMenuButtonTemplate")
+            updateRaidList:SetWidth(80)
+            updateRaidList:SetHeight(30)
+            updateRaidList:SetPoint("TOPRIGHT", tradeTest, -40, -25);
+            updateRaidList:SetText(L["UpdateList"])
+            updateRaidList:SetScript("OnClick", function()
+                GUI:getCurrentRaidList(self)
+            end)
+        end
+
+        do
             local b = CreateFrame("Button", nil, tradeTest, "UIPanelCloseButton")
             b:SetPoint("TOPRIGHT", tradeTest, 0, 0);
         end
 
-        do
+        local statusUpdate = CreateCellUpdateTest(function(cellFrame, tradeData)
 
-            --local bonusUpdate = CreateCellUpdate(function(cellFrame, entry)
-            --    if not (cellFrame.textBox) then
-            --        cellFrame.textBox = CreateFrame("EditBox", nil, cellFrame, "InputBoxTemplate")
-            --        cellFrame.textBox:SetPoint("CENTER", cellFrame, "CENTER")
-            --        cellFrame.textBox:SetWidth(70)
-            --        cellFrame.textBox:SetHeight(30)
-            --        -- cellFrame.textBox:SetNumeric(true)
-            --        cellFrame.textBox:SetAutoFocus(false)
-            --        cellFrame.textBox:SetMaxLetters(10)
-            --        cellFrame.textBox:SetScript("OnChar", mustnumber)
-            --        cellFrame.textBox:SetScript("OnEnterPressed", cellFrame.textBox.ClearFocus)
-            --        cellFrame.textBox:SetScript("OnEscapePressed", cellFrame.textBox.ClearFocus)
+            if not cellFrame.statusTexture then
+                cellFrame.statusTexture = cellFrame:CreateTexture()
+                --cellFrame.statusTexture:SetTexCoord(0, 1, 0, 1)
+                cellFrame.statusTexture:Show()
+                cellFrame.statusTexture:SetPoint("CENTER", cellFrame, "CENTER")
+                cellFrame.statusTexture:SetWidth(30)
+                cellFrame.statusTexture:SetHeight(30)
+            end
+
+
+            if tradeData[1] == 1 then
+                cellFrame.statusTexture:SetTexture(130751)
+                cellFrame.statusTexture:SetVertexColor(0,.8,0,1)
+            else
+                cellFrame.statusTexture:SetTexture([[Interface\Glues\LOGIN\Glues-CheckBox-Check]])
+                cellFrame.statusTexture:SetVertexColor (1, 1, 1, .9)
+            end
+
+            cellFrame.statusTexture:SetSize(32,32)
+
+            cellFrame:SetScript("OnEnter", nil)
+        end)
+
+        local flaskUpdate = CreateCellUpdateTest(function(cellFrame, tradeData)
+            if not (cellFrame.textBox) then
+                cellFrame.textBox = CreateFrame("EditBox", nil, cellFrame, "InputBoxTemplate")
+                cellFrame.textBox:SetPoint("CENTER", cellFrame, "CENTER", 0, 0)
+                cellFrame.textBox:SetWidth(50)
+                cellFrame.textBox:SetHeight(30)
+                -- cellFrame.textBox:SetNumeric(true)
+                cellFrame.textBox:SetAutoFocus(false)
+                cellFrame.textBox:SetMaxLetters(2)
+                cellFrame.textBox:SetScript("OnChar", mustnumber)
+                cellFrame.textBox:SetScript("OnEnterPressed", cellFrame.textBox.ClearFocus)
+                cellFrame.textBox:SetScript("OnEscapePressed", cellFrame.textBox.ClearFocus)
+            end
+
+            cellFrame.textBox:SetText(tostring(tradeData[4] or 0))
+
+            cellFrame:SetScript("OnClick", nil)
+            cellFrame:SetScript("OnEnter", nil)
             --
-            --    end
-            --    cellFrame.textBox:SetText(tostring(entry["cost"] or 0))
+            cellFrame.textBox:SetScript("OnTextChanged", function(self, userInput)
+                local t = cellFrame.textBox:GetText()
+                local v = tonumber(t) or 0
+                if tradeData[4] == v then
+                    return
+                end
+                if v < 0.0001 then
+                    v = 0
+                end
+                tradeData[4] = v
+            end)
+        end)
 
-                --local type = entry["costtype"] or "GOLD"
-                --
-                --if type == "PROFIT_PERCENT" then
-                --    cellFrame.text:SetText(DIM_GREEN_FONT_COLOR:WrapTextInColorCode("%"))
-                --elseif type == "REVENUE_PERCENT" then
-                --    cellFrame.text:SetText(LIGHTBLUE_FONT_COLOR:WrapTextInColorCode("%"))
-                --elseif type == "MUL_AVG" then
-                --    cellFrame.text:SetText("*")
-                --else
-                --    -- GOLD by default
-                --    cellFrame.text:SetText(GOLD_AMOUNT_TEXTURE_STRING:format(""))
-                --end
-                --
-                --cellFrame:SetScript("OnClick", nil)
-                --cellFrame:SetScript("OnEnter", nil)
-                --
-                --if entry["type"] == "DEBIT" then
-                --    cellFrame:SetScript("OnClick", function()
-                --        valueTypeMenuCtx.entry = entry
-                --        for _, m in pairs(valueTypeMenu) do
-                --            m.checked = m.costtype == type
-                --        end
-                --
-                --        EasyMenu(valueTypeMenu, menuFrame, "cursor", 0 , 0, "MENU");
-                --    end)
-                --
-                --end
-                --
-                --if entry["costcache"] then
-                --    cellFrame:SetScript("OnEnter", function()
-                --        tooltip:SetOwner(cellFrame, "ANCHOR_RIGHT")
-                --        tooltip:SetText(GetMoneyString(entry["costcache"]))
-                --        tooltip:Show()
-                --    end)
-                --
-                --    cellFrame:SetScript("OnLeave", function()
-                --        tooltip:Hide()
-                --        tooltip:SetOwner(UIParent, "ANCHOR_NONE")
-                --    end)
-                --end
-                --
-                --cellFrame.textBox:SetScript("OnTextChanged", function(self, userInput)
-                --    local t = cellFrame.textBox:GetText()
-                --    local v = tonumber(t) or 0
-                --
-                --    if entry["cost"] == v then
-                --        return
-                --    end
-                --
-                --    if v < 0.0001 then
-                --        v = 0
-                --    end
-                --
-                --    entry["cost"] = v
-                --    GUI:UpdateLootTableFromDatabase()
-                --end)
+        local bonusUpdate = CreateCellUpdateTest(function(cellFrame, tradeData)
 
-            --end)
+            cellFrame.curEntry = tradeData
 
-            local testFrame = ScrollingTable:CreateST({
-                {
-                    ["name"] = L["Nickname"],
-                    ["align"] = "CENTER",
-                    ["width"] = 150,
-                },
-                {
-                    ["name"] = L["Proportion"],
-                    ["align"] = "CENTER",
-                    ["width"] = 100,
-                },
-                {
-                    ["name"] = L["Bonus"],
-                    ["align"] = "CENTER",
-                    --["DoCellUpdate"] = bonusUpdate,
-                    ["width"] = 100,
-                },
-                {
-                    ["name"] = "",
-                    ["align"] = "CENTER",
-                    ["width"] = 70,
-                },
-                {
-                    ["name"] = L["TradeStatus"],
-                    ["align"] = "CENTER",
-                    ["width"] = 50,
-                }
-            }, 12, 30, nil, tradeTest)
-            testFrame.head:SetHeight(15)
-            testFrame.frame:SetPoint("TOPLEFT", tradeTest, "TOPLEFT", 30, -50)
-            testFrame.frame:SetHeight(600)
-            self.testFrame = testFrame
-        end
+            if not (cellFrame.textBox) then
+                cellFrame.textBox = CreateFrame("EditBox", nil, cellFrame, "InputBoxTemplate")
+                cellFrame.textBox:SetPoint("CENTER", cellFrame, "CENTER", 0, 0)
+                cellFrame.textBox:SetWidth(50)
+                cellFrame.textBox:SetHeight(30)
+                -- cellFrame.textBox:SetNumeric(true)
+                cellFrame.textBox:SetAutoFocus(false)
+                cellFrame.textBox:SetMaxLetters(10)
+                cellFrame.textBox:SetScript("OnChar", mustnumber)
+                cellFrame.textBox:SetScript("OnEnterPressed", cellFrame.textBox.ClearFocus)
+                cellFrame.textBox:SetScript("OnEscapePressed", cellFrame.textBox.ClearFocus)
+            end
+            if not cellFrame.bidButton then
+                cellFrame.bidButton = CreateFrame("Button", nil, cellFrame, "GameMenuButtonTemplate")
+                cellFrame.bidButton:SetPoint("LEFT", cellFrame.textBox, "RIGHT", 10, 0)
+                cellFrame.bidButton:SetSize(25, 25)
+                cellFrame.bidButton:SetScript("OnClick", function ()
+                    GUI:TradeSumForPlayer(cellFrame.curEntry)
+                end)
+                local icon = cellFrame.bidButton:CreateTexture(nil, 'ARTWORK')
+                icon:SetTexture("Interface\\GroupFrame\\UI-Group-MasterLooter")
+                icon:SetPoint("CENTER", -1, 0)
+                icon:SetSize(15, 15)
+            end
+
+            cellFrame.textBox:SetText(tostring(tradeData[5] or 0))
+            --local type = "GOLD"
+            --
+            --if type == "PROFIT_PERCENT" then
+            --    cellFrame.text:SetText(DIM_GREEN_FONT_COLOR:WrapTextInColorCode("%"))
+            --elseif type == "REVENUE_PERCENT" then
+            --    cellFrame.text:SetText(LIGHTBLUE_FONT_COLOR:WrapTextInColorCode("%"))
+            --elseif type == "MUL_AVG" then
+            --    cellFrame.text:SetText("*")
+            --else
+            --    -- GOLD by default
+            --cellFrame.text:SetText(GOLD_AMOUNT_TEXTURE_STRING:format(""))
+            --end
+            --
+            cellFrame:SetScript("OnClick", nil)
+            cellFrame:SetScript("OnEnter", nil)
+            --
+            cellFrame.textBox:SetScript("OnTextChanged", function(self, userInput)
+                local t = cellFrame.textBox:GetText()
+                local v = tonumber(t) or 0
+                if tradeData[5] == v then
+                    return
+                end
+                if v < 0.0001 then
+                    v = 0
+                end
+                tradeData[5] = v
+            end)
+        end)
+        local testFrame = ScrollingTable:CreateST({
+            {
+                ["name"] = L["TradeStatus"],
+                ["align"] = "CENTER",
+                ["width"] = 64,
+                ["height"] = 64,
+                ["DoCellUpdate"] = statusUpdate
+            },
+            {
+                ["name"] = L["Nickname"],
+                ["align"] = "CENTER",
+                ["width"] = 150,
+            },
+            {
+                ["name"] = L["Proportion"],
+                ["align"] = "CENTER",
+                ["width"] = 100,
+            },
+            {
+                ["name"] = L["Flasks"],
+                ["align"] = "CENTER",
+                ["DoCellUpdate"] = flaskUpdate,
+                ["width"] = 100,
+            },
+            {
+                ["name"] = L["Bonus"],
+                ["align"] = "RIGHT",
+                ["DoCellUpdate"] = bonusUpdate,
+                ["width"] = 120,
+            }
+        }, 18, 30, nil, tradeTest)
+        testFrame.head:SetHeight(15)
+        testFrame.frame:SetPoint("TOPLEFT", tradeTest, "TOPLEFT", 30, -90)
+        --testFrame:SetDisplayRows(18,30)
+        self.testFrame = testFrame
+
 
         tradeTest:Hide()
 
