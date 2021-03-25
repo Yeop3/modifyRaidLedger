@@ -1055,7 +1055,7 @@ function GUI:Init()
     do
         local tradeTest = CreateFrame("Frame", nil, f)
         tradeTest:SetWidth(630)
-        tradeTest:SetHeight(730)
+        tradeTest:SetHeight(670)
         tradeTest:SetBackdrop({
             bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background",
             edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
