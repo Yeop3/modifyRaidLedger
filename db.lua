@@ -10,7 +10,8 @@ RegEvent("ADDON_LOADED", function()
 end)
 
 local db = {
-    ledgerItemsChangedCallback = {}
+    ledgerItemsChangedCallback = {},
+    traderRaidersChangedCallback = {}
 }
 
 function db:RegisterChangeCallback(cb)
@@ -19,6 +20,16 @@ end
 
 function db:OnLedgerItemsChange()
     for _, cb in pairs(self.ledgerItemsChangedCallback) do
+        cb()
+    end
+end
+
+function db:RegisterTraderChangeCallback(cb)
+    table.insert( self.traderRaidersChangedCallback, cb )
+end
+
+function db:OnTraderRaidersChange()
+    for _, cb in pairs(self.traderRaidersChangedCallback) do
         cb()
     end
 end
@@ -50,6 +61,73 @@ local MAX_LEDGER_COUNT = 1
 
 function db:SetCurrentLedger(idx)
     RaidLedgerDatabase["current"] = idx
+end
+
+function db:SetCurrentRaiders(idx)
+    RaidLedgerDatabase["currentTraders"] = idx
+end
+
+function db:NewTradeList()
+    if not RaidLedgerDatabase["traders"] then
+        RaidLedgerDatabase["traders"] = {}
+    end
+
+    local tradersList = RaidLedgerDatabase["traders"]
+    table.insert(tradersList, {
+        ["raiders"] = {}
+    })
+
+    while(#tradersList > MAX_LEDGER_COUNT) do
+        table.remove(tradersList, 1)
+    end
+
+    self:SetCurrentRaiders(#tradersList)
+    self:OnTraderRaidersChange()
+end
+
+function db:FillingTradeTable()
+
+    local sortTable = function(a,b)
+        return a["player"]["name"] < b["player"]["name"]
+    end
+
+    local traders = self:GetCurrentRaiders()
+    for i = 1, GetNumGroupMembers() do
+        name, _, _, _, _, classFile = GetRaidRosterInfo(i)
+        if classFile == "SHAMAN" then
+            r, g, b = 0.0, 0.44, 0.87
+        else
+            r, g, b = GetClassColor(classFile)
+        end
+        table.insert(traders["raiders"], {
+            status = false,
+            player = {
+                name = name,
+                color = {
+                    red = r,
+                    green = g,
+                    blue = b
+                }
+            } ,
+            minus = false,
+            proportion = 0.0,
+            flasks = 0,
+            bonus = 0.0,
+            total = 0.0
+        })
+    end
+    table.sort(traders["raiders"], sortTable)
+    self:OnTraderRaidersChange()
+end
+
+function db:GetCurrentRaiders()
+    if not RaidLedgerDatabase["traders"] then
+        self:NewTradeList()
+    end
+
+    local cur = RaidLedgerDatabase["currentTraders"]
+
+    return RaidLedgerDatabase["traders"][cur]
 end
 
 function db:NewLedger()
@@ -128,6 +206,20 @@ function db:RemoveEntry(idx)
     table.remove(ledger["items"], idx)
 
     self:OnLedgerItemsChange()
+end
+
+function db:RemoveAllRaiders()
+    local again = true
+    while again do
+        again = false
+        local raiders = self:GetCurrentRaiders()["raiders"]
+        for idx, entry in pairs(raiders or {}) do
+            again = true
+            table.remove(raiders, idx)
+        end
+    end
+    self:OnTraderRaidersChange()
+    self:FillingTradeTable()
 end
 
 function db:RemoveGarbage()

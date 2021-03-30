@@ -36,34 +36,38 @@ local function GetRosterNumber()
     return #all
 end
 
-
-function GUI:getCurrentRaidList(self)
-
-    local sortTable = function(a,b)
-        return a[2] < b[2]
+function GUI:HelpMinusFunction(id, checked)
+    local raiders = Database:GetCurrentRaiders()["raiders"]
+    if checked then
+        raiders[id]["minus"] = true
+        raiders[id]["proportion"] = raiders[id]["proportion"] / 2
+        GUI:UpdateTradeTableFromDatabase()
+    else
+        raiders[id]["minus"] = false
+        raiders[id]["proportion"] = self.avg
+        GUI:UpdateTradeTableFromDatabase()
     end
-
-    local raidTradeList = {}
-
-    for i = 1, GetNumGroupMembers() do
-        name = GetRaidRosterInfo(i)
-        table.insert(raidTradeList, {
-            0,
-            name,
-            GetMoneyString(self.avg),
-            0,
-            0
-        })
-    end
-    table.sort(raidTradeList, sortTable)
-    self.testFrame:SetData(raidTradeList,true)
 end
 
-function GUI:TradeSumForPlayer(tradeData)
-    local profit = self.avg + self.flaskCost * 100 * 100 * tradeData[4] + tradeData[5]*100*100
+function GUI:getCurrentRaidList()
+
+    Database:RemoveAllRaiders()
+
+    local raiders = Database:GetCurrentRaiders()["raiders"]
+
+    for id, item in pairs(raiders or {}) do
+        item["proportion"] = self.avg
+    end
+
+    GUI:UpdateTradeTableFromDatabase()
+
+end
+
+function GUI:TradeSumForPlayer(tradeData, id)
+    local profit = tradeData["total"]
 
     if not TradeFrame:IsShown() then
-        InitiateTrade(tradeData[2])
+        InitiateTrade(tradeData["player"]["name"])
     end
 
     if TradeFrame:IsShown() then
@@ -71,6 +75,40 @@ function GUI:TradeSumForPlayer(tradeData)
     else
         PickupPlayerMoney(profit)
     end
+
+    local raiders = Database:GetCurrentRaiders()["raiders"]
+
+    local f = CreateFrame("Frame");
+    f:RegisterEvent("TRADE_SHOW");
+    --f:RegisterEvent("TRADE_CLOSED");
+    --f:RegisterEvent("PLAYER_TRADE_MONEY");
+    f:RegisterEvent("TRADE_MONEY_CHANGED");
+    f:RegisterEvent("TRADE_ACCEPT_UPDATE");
+    f:RegisterEvent("TRADE_REQUEST_CANCEL");
+    f:RegisterEvent("UI_INFO_MESSAGE");
+    f:RegisterEvent("UI_ERROR_MESSAGE");
+    local playerMoney, targetMoney, tradeWho, tradeWhoClass = 0, 0, "", "";
+    local doTrade;
+    f:SetScript("OnEvent", function(self, event, ...)
+        if (event == "TRADE_SHOW") then
+        elseif (event == "TRADE_MONEY_CHANGED") then
+        elseif (event == "TRADE_ACCEPT_UPDATE") then
+        elseif (event == "TRADE_REQUEST_CANCEL") then
+            raiders[id]["status"] = false
+            GUI:UpdateTradeTableFromDatabase()
+        elseif (event == "UI_INFO_MESSAGE" or event == "UI_ERROR_MESSAGE") then
+            local type, msg = ...;
+            if (msg == ERR_TRADE_BAG_FULL or msg == ERR_TRADE_TARGET_BAG_FULL or msg == ERR_TRADE_CANCELLED
+                    or msg == ERR_TRADE_TARGET_MAX_LIMIT_CATEGORY_COUNT_EXCEEDED_IS) then
+                raiders[id]["status"] = false
+                GUI:UpdateTradeTableFromDatabase()
+            elseif (msg == ERR_TRADE_COMPLETE) then
+                raiders[id]["status"] = true
+                GUI:UpdateTradeTableFromDatabase()
+            end
+        end
+    end)
+
 end
 
 local function RemoveAll(item)
@@ -118,6 +156,24 @@ end
 
 function GUI:GetSplitNumber()
     return tonumber(self.countEdit:GetText()) or 0
+end
+
+function GUI:UpdateTradeTableFromDatabase()
+
+    local data = {}
+
+
+    for id, item in pairs(Database:GetCurrentRaiders()["raiders"]) do
+
+        table.insert(data,{
+            ["cols"] = {
+                {
+                    ["value"] = id
+                }, -- id
+            },
+        })
+    end
+    self.testFrame:SetData(data)
 end
 
 function GUI:UpdateLootTableFromDatabase()
@@ -174,9 +230,12 @@ local function GetEntryFromUITest(rowFrame, cellFrame, data, cols, row, realrow,
     end
 
     local celldata = table:GetCell(rowdata, column)
-    local tradeData = rowdata
+    local idx = rowdata["cols"][1].value
 
-    return tradeData
+    local traders = Database:GetCurrentRaiders()
+    local tradeData = traders["raiders"][idx]
+
+    return tradeData, idx
 end
 
 local function CreateCellUpdateTest(cb)
@@ -185,9 +244,9 @@ local function CreateCellUpdateTest(cb)
             return
         end
 
-        local tradeData = GetEntryFromUITest(rowFrame, cellFrame, data, cols, row, realrow, column, table)
+        local tradeData, idx = GetEntryFromUITest(rowFrame, cellFrame, data, cols, row, realrow, column, table)
         if tradeData then
-            cb(cellFrame, tradeData, rowFrame)
+            cb(cellFrame, tradeData, idx, rowFrame)
         end
     end
 end
@@ -315,8 +374,8 @@ function GUI:Init()
     -- bid
     do
         local bf = CreateFrame("Frame", nil, f)
-        bf:SetWidth(290)
-        bf:SetHeight(310)
+        bf:SetWidth(310)
+        bf:SetHeight(370)
         bf:SetBackdrop({
             bgFile = "Interface\\FrameGeneral\\UI-Background-Marble",
             edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
@@ -522,12 +581,53 @@ function GUI:Init()
 
             s:SetValue(100)
 
+            local g = CreateFrame("Button",nil, bf,"GameMenuButtonTemplate")
+            g:SetPoint("BOTTOMRIGHT", s , "BOTTOMLEFT", 0, -40)
+            g:SetHeight(20)
+            g:SetWidth(50)
+            g:SetText("50")
+            g:SetScript("OnClick", function()
+                s:SetValue(50)
+            end)
+            local f = CreateFrame("Button",nil, bf,"GameMenuButtonTemplate")
+            f:SetPoint("LEFT", g , "RIGHT")
+            f:SetHeight(20)
+            f:SetWidth(50)
+            f:SetText("100")
+            f:SetScript("OnClick", function()
+                s:SetValue(100)
+            end)
+            local z = CreateFrame("Button",nil, bf,"GameMenuButtonTemplate")
+            z:SetPoint("LEFT", f , "RIGHT")
+            z:SetHeight(20)
+            z:SetWidth(50)
+            z:SetText("500")
+            z:SetScript("OnClick", function()
+                s:SetValue(500)
+            end)
+            local v = CreateFrame("Button",nil, bf,"GameMenuButtonTemplate")
+            v:SetPoint("LEFT", z , "RIGHT")
+            v:SetHeight(20)
+            v:SetWidth(50)
+            v:SetText("1000")
+            v:SetScript("OnClick", function()
+                s:SetValue(1000)
+            end)
+            local b = CreateFrame("Button",nil, bf,"GameMenuButtonTemplate")
+            b:SetPoint("LEFT", v , "RIGHT")
+            b:SetHeight(20)
+            b:SetWidth(50)
+            b:SetText("2500")
+            b:SetScript("OnClick", function()
+                s:SetValue(2500)
+            end)
+
             bf.startprice = s
         end
 
         do
             local l = bf:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-            l:SetPoint("TOPLEFT", bf, 20, -160)
+            l:SetPoint("TOPLEFT", bf, 20, -190)
             l:SetText(L["Bid mode"])
 
             local usegold
@@ -584,7 +684,7 @@ function GUI:Init()
 
             do
                 local b = CreateFrame("CheckButton", nil, bf, "UICheckButtonTemplate")
-                b:SetPoint("TOPLEFT", bf, 30 + l:GetStringWidth(), -150)
+                b:SetPoint("TOPLEFT", bf, 30 + l:GetStringWidth(), -180)
         
                 b.text = b:CreateFontString(nil, "OVERLAY", "GameFontNormal")
                 b.text:SetPoint("LEFT", b, "RIGHT", 0, 1)
@@ -600,11 +700,11 @@ function GUI:Init()
                     s:SetOrientation('HORIZONTAL')
                     s:SetHeight(14)
                     s:SetWidth(160)
-                    s:SetMinMaxValues(10, 500)
+                    s:SetMinMaxValues(0, 1000)
                     s:SetValueStep(10)
                     s:SetObeyStepOnDrag(true)
-                    s.Low:SetText(GOLD_AMOUNT_TEXTURE_STRING:format(10))
-                    s.High:SetText(GOLD_AMOUNT_TEXTURE_STRING:format(500))
+                    s.Low:SetText(GOLD_AMOUNT_TEXTURE_STRING:format(0))
+                    s.High:SetText(GOLD_AMOUNT_TEXTURE_STRING:format(1000))
             
                     local l = s:CreateFontString(nil, "OVERLAY", "GameFontNormal")
                     l:SetPoint("RIGHT", s, "LEFT", -20, 1)
@@ -612,7 +712,7 @@ function GUI:Init()
 
                     bf:SetWidth(math.max(bf:GetWidth(), l:GetStringWidth() + 220))
         
-                    s:SetPoint("TOPLEFT", bf, 40 + l:GetStringWidth(), -200)
+                    s:SetPoint("TOPLEFT", bf, 40 + l:GetStringWidth(), -230)
         
                     s:SetScript("OnValueChanged", function(self, value)
                         value = math.floor(value)
@@ -639,14 +739,55 @@ function GUI:Init()
 
                     s:SetValue(50)
                     s:Hide()
-        
+
+
+                    local g = CreateFrame("Button",nil, bf,"GameMenuButtonTemplate")
+                    g:SetPoint("BOTTOMRIGHT", s , "BOTTOMLEFT", 0, -40)
+                    g:SetHeight(20)
+                    g:SetWidth(50)
+                    g:SetText("10")
+                    g:SetScript("OnClick", function()
+                        s:SetValue(10)
+                    end)
+                    local f = CreateFrame("Button",nil, bf,"GameMenuButtonTemplate")
+                    f:SetPoint("LEFT", g , "RIGHT")
+                    f:SetHeight(20)
+                    f:SetWidth(50)
+                    f:SetText("50")
+                    f:SetScript("OnClick", function()
+                        s:SetValue(50)
+                    end)
+                    local z = CreateFrame("Button",nil, bf,"GameMenuButtonTemplate")
+                    z:SetPoint("LEFT", f , "RIGHT")
+                    z:SetHeight(20)
+                    z:SetWidth(50)
+                    z:SetText("100")
+                    z:SetScript("OnClick", function()
+                        s:SetValue(100)
+                    end)
+                    local v = CreateFrame("Button",nil, bf,"GameMenuButtonTemplate")
+                    v:SetPoint("LEFT", z , "RIGHT")
+                    v:SetHeight(20)
+                    v:SetWidth(50)
+                    v:SetText("500")
+                    v:SetScript("OnClick", function()
+                        s:SetValue(500)
+                    end)
+                    local k = CreateFrame("Button",nil, bf,"GameMenuButtonTemplate")
+                    k:SetPoint("LEFT", v , "RIGHT")
+                    k:SetHeight(20)
+                    k:SetWidth(50)
+                    k:SetText("1000")
+                    k:SetScript("OnClick", function()
+                        s:SetValue(1000)
+                    end)
                     b.slide = s
                 end                
             end
 
             do
                 local b = CreateFrame("CheckButton", nil, bf, "UICheckButtonTemplate")
-                b:SetPoint("TOPLEFT", bf, 90 + l:GetStringWidth(), -150)
+                b:SetPoint("TOPLEFT", bf, 90 + l:GetStringWidth(), -180)
         
                 b.text = b:CreateFontString(nil, "OVERLAY", "GameFontNormal")
                 b.text:SetPoint("LEFT", b, "RIGHT", 0, 1)
@@ -670,7 +811,7 @@ function GUI:Init()
                     l:SetPoint("RIGHT", s, "LEFT", -20, 1)
                     l:SetText(L["Bid increment"])
         
-                    s:SetPoint("TOPLEFT", bf, 40 + l:GetStringWidth(), -200)
+                    s:SetPoint("TOPLEFT", bf, 40 + l:GetStringWidth(), -230)
         
                     s:SetScript("OnValueChanged", function(self, value)
                         value = math.floor(value)
@@ -689,7 +830,7 @@ function GUI:Init()
 
         do
             local b = CreateFrame("CheckButton", nil, bf, "UICheckButtonTemplate")
-            b:SetPoint("TOPLEFT", bf, 15, -230)
+            b:SetPoint("TOPLEFT", bf, 15, -290)
     
             b.text = b:CreateFontString(nil, "OVERLAY", "GameFontNormal")
             b.text:SetPoint("LEFT", b, "RIGHT", 0, 1)
@@ -1031,7 +1172,7 @@ function GUI:Init()
         b:SetPoint("BOTTOMLEFT", f, 250, 57)
         b.text:SetText(L["Round per member credit down"])
         b:SetScript("OnClick", function()
-            GUI:UpdateSummary() 
+            GUI:UpdateSummary()
             Database:SetConfig("rounddownchecked", b:GetChecked())
         end)
         b:SetChecked(Database:GetConfigOrDefault("rounddownchecked", false))
@@ -1054,7 +1195,7 @@ function GUI:Init()
 
     do
         local tradeTest = CreateFrame("Frame", nil, f)
-        tradeTest:SetWidth(630)
+        tradeTest:SetWidth(750)
         tradeTest:SetHeight(670)
         tradeTest:SetBackdrop({
             bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background",
@@ -1088,7 +1229,7 @@ function GUI:Init()
             flaskCost:SetScript("OnEscapePressed", flaskCost.ClearFocus)
             flaskCost:SetText(0)
             flaskCost:SetScript("OnTextChanged", function() self.flaskCost = tonumber(flaskCost:GetText()) end)
-            flaskCost.text = flaskCost:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+            flaskCost.text = flaskCost:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
             flaskCost.text:SetPoint("LEFT", flaskCost, -20, 0)
             flaskCost.text:SetText("=")
             flaskCost.money = flaskCost:CreateFontString(nil, "OVERLAY","GameFontNormal")
@@ -1116,7 +1257,9 @@ function GUI:Init()
             b:SetPoint("TOPRIGHT", tradeTest, 0, 0);
         end
 
-        local statusUpdate = CreateCellUpdateTest(function(cellFrame, tradeData)
+        local statusUpdate = CreateCellUpdateTest(function(cellFrame, tradeData, rowFrame)
+
+            cellFrame.curEntry = tradeData
 
             if not cellFrame.statusTexture then
                 cellFrame.statusTexture = cellFrame:CreateTexture()
@@ -1128,7 +1271,7 @@ function GUI:Init()
             end
 
 
-            if tradeData[1] == 1 then
+            if cellFrame.curEntry["status"] then
                 cellFrame.statusTexture:SetTexture(130751)
                 cellFrame.statusTexture:SetVertexColor(0,.8,0,1)
             else
@@ -1145,7 +1288,7 @@ function GUI:Init()
             if not (cellFrame.textBox) then
                 cellFrame.textBox = CreateFrame("EditBox", nil, cellFrame, "InputBoxTemplate")
                 cellFrame.textBox:SetPoint("CENTER", cellFrame, "CENTER", 0, 0)
-                cellFrame.textBox:SetWidth(50)
+                cellFrame.textBox:SetWidth(35)
                 cellFrame.textBox:SetHeight(30)
                 -- cellFrame.textBox:SetNumeric(true)
                 cellFrame.textBox:SetAutoFocus(false)
@@ -1155,7 +1298,7 @@ function GUI:Init()
                 cellFrame.textBox:SetScript("OnEscapePressed", cellFrame.textBox.ClearFocus)
             end
 
-            cellFrame.textBox:SetText(tostring(tradeData[4] or 0))
+            cellFrame.textBox:SetText(tostring(tradeData["flasks"] or 0))
 
             cellFrame:SetScript("OnClick", nil)
             cellFrame:SetScript("OnEnter", nil)
@@ -1163,17 +1306,18 @@ function GUI:Init()
             cellFrame.textBox:SetScript("OnTextChanged", function(self, userInput)
                 local t = cellFrame.textBox:GetText()
                 local v = tonumber(t) or 0
-                if tradeData[4] == v then
+                if tradeData["flasks"] == v then
                     return
                 end
                 if v < 0.0001 then
                     v = 0
                 end
-                tradeData[4] = v
+                tradeData["flasks"] = v
+                GUI:UpdateTradeTableFromDatabase()
             end)
         end)
 
-        local bonusUpdate = CreateCellUpdateTest(function(cellFrame, tradeData)
+        local bonusUpdate = CreateCellUpdateTest(function(cellFrame, tradeData, idx)
 
             cellFrame.curEntry = tradeData
 
@@ -1188,21 +1332,12 @@ function GUI:Init()
                 cellFrame.textBox:SetScript("OnChar", mustnumber)
                 cellFrame.textBox:SetScript("OnEnterPressed", cellFrame.textBox.ClearFocus)
                 cellFrame.textBox:SetScript("OnEscapePressed", cellFrame.textBox.ClearFocus)
-            end
-            if not cellFrame.bidButton then
-                cellFrame.bidButton = CreateFrame("Button", nil, cellFrame, "GameMenuButtonTemplate")
-                cellFrame.bidButton:SetPoint("LEFT", cellFrame.textBox, "RIGHT", 10, 0)
-                cellFrame.bidButton:SetSize(25, 25)
-                cellFrame.bidButton:SetScript("OnClick", function ()
-                    GUI:TradeSumForPlayer(cellFrame.curEntry)
-                end)
-                local icon = cellFrame.bidButton:CreateTexture(nil, 'ARTWORK')
-                icon:SetTexture("Interface\\GroupFrame\\UI-Group-MasterLooter")
-                icon:SetPoint("CENTER", -1, 0)
-                icon:SetSize(15, 15)
+                cellFrame.money = cellFrame.textBox:CreateFontString(nil, "OVERLAY","GameFontNormal")
+                cellFrame.money:SetText(GOLD_AMOUNT_TEXTURE_STRING:format(""))
+                cellFrame.money:SetPoint("LEFT", cellFrame.textBox, "RIGHT", 1, 0)
             end
 
-            cellFrame.textBox:SetText(tostring(tradeData[5] or 0))
+            cellFrame.textBox:SetText(tostring(tradeData["bonus"]/10000 or 0))
             --local type = "GOLD"
             --
             --if type == "PROFIT_PERCENT" then
@@ -1222,13 +1357,64 @@ function GUI:Init()
             cellFrame.textBox:SetScript("OnTextChanged", function(self, userInput)
                 local t = cellFrame.textBox:GetText()
                 local v = tonumber(t) or 0
-                if tradeData[5] == v then
+                if tradeData["bonus"] == v then
                     return
                 end
                 if v < 0.0001 then
                     v = 0
                 end
-                tradeData[5] = v
+                tradeData["bonus"] = v * 100 * 100
+                GUI:UpdateTradeTableFromDatabase()
+            end)
+        end)
+
+        local playerUpdate = CreateCellUpdateTest(function(cellFrame, tradeData)
+            cellFrame.text:SetText(tradeData["player"]["name"])
+            cellFrame.text:SetTextColor(
+                    tradeData["player"]["color"]["red"],
+                    tradeData["player"]["color"]["green"],
+                    tradeData["player"]["color"]["blue"]
+            )
+        end)
+
+        local proportionUpdate = CreateCellUpdateTest(function(cellFrame, tradeData)
+            cellFrame.text:SetText(GetMoneyString(tradeData["proportion"]))
+            cellFrame.text:SetTextColor(1,1,1)
+        end)
+
+        local totalUpdate = CreateCellUpdateTest(function(cellFrame, tradeData)
+            tradeData["total"] = tradeData["proportion"] +
+                    tradeData["bonus"] + tradeData["flasks"] *
+                    self.flaskCost * 100 * 100
+            cellFrame.text:SetText(GetMoneyString(tradeData["total"]))
+            cellFrame.text:SetTextColor(1,1,1)
+        end)
+
+        local bidUpdate = CreateCellUpdateTest(function(cellFrame, tradeData, idx)
+            if not cellFrame.bidButton then
+                cellFrame.bidButton = CreateFrame("Button", nil, cellFrame, "GameMenuButtonTemplate")
+                cellFrame.bidButton:SetPoint("CENTER", cellFrame, "CENTER")
+                cellFrame.bidButton:SetSize(25, 25)
+                local icon = cellFrame.bidButton:CreateTexture(nil, 'ARTWORK')
+                icon:SetTexture("Interface\\GroupFrame\\UI-Group-MasterLooter")
+                icon:SetPoint("CENTER", -1, 0)
+                icon:SetSize(15, 15)
+            end
+
+            cellFrame.bidButton:SetScript("OnClick", function ()
+                GUI:TradeSumForPlayer(tradeData, idx)
+            end)
+        end)
+
+        local minusUpdate = CreateCellUpdateTest(function(cellFrame, tradeData, idx)
+            if not cellFrame.minusBox then
+                cellFrame.minusBox = CreateFrame("CheckButton", nil, cellFrame, "UICheckButtonTemplate")
+                cellFrame.minusBox:SetPoint("CENTER", cellFrame, "CENTER")
+                cellFrame.minusBox:SetSize(25, 25)
+            end
+
+            cellFrame.minusBox:SetScript("OnClick", function()
+                GUI:HelpMinusFunction(idx, cellFrame.minusBox:GetChecked())
             end)
         end)
         local testFrame = ScrollingTable:CreateST({
@@ -1242,24 +1428,44 @@ function GUI:Init()
             {
                 ["name"] = L["Nickname"],
                 ["align"] = "CENTER",
+                ["DoCellUpdate"] = playerUpdate,
                 ["width"] = 150,
+            },
+            {
+                ["name"] = "-50%",
+                ["align"] = "CENTER",
+                ["DoCellUpdate"] = minusUpdate,
+                ["width"] = 50,
             },
             {
                 ["name"] = L["Proportion"],
                 ["align"] = "CENTER",
+                ["DoCellUpdate"] = proportionUpdate,
                 ["width"] = 100,
             },
             {
                 ["name"] = L["Flasks"],
                 ["align"] = "CENTER",
                 ["DoCellUpdate"] = flaskUpdate,
-                ["width"] = 100,
+                ["width"] = 50,
             },
             {
                 ["name"] = L["Bonus"],
-                ["align"] = "RIGHT",
+                ["align"] = "CENTER",
                 ["DoCellUpdate"] = bonusUpdate,
                 ["width"] = 120,
+            },
+            {
+                ["name"] = L["Total"],
+                ["align"] = "CENTER",
+                ["DoCellUpdate"] = totalUpdate,
+                ["width"] = 70,
+            },
+            {
+                ["name"] = "",
+                ["align"] = "CENTER",
+                ["DoCellUpdate"] = bidUpdate,
+                ["width"] = 50,
             }
         }, 18, 30, nil, tradeTest)
         testFrame.head:SetHeight(15)

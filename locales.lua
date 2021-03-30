@@ -120,6 +120,7 @@ L["Clear garbage"] = true
 L["Remove all uncommitted records?"] = true
 L["Flasks"] = true
 L["UpdateList"] = true
+L["Total"] = true
 
 elseif locale == 'deDE' then
 --[[Translation missing --]]
@@ -1380,6 +1381,7 @@ L["TradeStatus"] = "Статус"
 L["Remove all uncommitted records?"] = "Удалить все незафиксированные записи?"
 L["Flasks"] = "Фласки"
 L["UpdateList"] = "Обновить"
+L["Total"] = "Всего"
 
 elseif locale == 'zhCN' then
 L["# line starts with # will be ignored"] = "# 以 # 开头的行自动被忽略"
