@@ -87,28 +87,21 @@ function GUI:TradeSumForPlayer(tradeData, id)
     f:RegisterEvent("TRADE_REQUEST_CANCEL");
     f:RegisterEvent("UI_INFO_MESSAGE");
     f:RegisterEvent("UI_ERROR_MESSAGE");
-    local playerMoney, targetMoney, tradeWho, tradeWhoClass = 0, 0, "", "";
-    local doTrade;
+    local tradeWho = ""
     f:SetScript("OnEvent", function(self, event, ...)
         if (event == "TRADE_SHOW") then
-        elseif (event == "TRADE_MONEY_CHANGED") then
-        elseif (event == "TRADE_ACCEPT_UPDATE") then
-        elseif (event == "TRADE_REQUEST_CANCEL") then
-            raiders[id]["status"] = false
-            GUI:UpdateTradeTableFromDatabase()
+            tradeWho = UnitName('npc')
+            AcceptTrade()
         elseif (event == "UI_INFO_MESSAGE" or event == "UI_ERROR_MESSAGE") then
             local type, msg = ...;
-            if (msg == ERR_TRADE_BAG_FULL or msg == ERR_TRADE_TARGET_BAG_FULL or msg == ERR_TRADE_CANCELLED
-                    or msg == ERR_TRADE_TARGET_MAX_LIMIT_CATEGORY_COUNT_EXCEEDED_IS) then
-                raiders[id]["status"] = false
-                GUI:UpdateTradeTableFromDatabase()
-            elseif (msg == ERR_TRADE_COMPLETE) then
-                raiders[id]["status"] = true
-                GUI:UpdateTradeTableFromDatabase()
+            if (msg == ERR_TRADE_COMPLETE) then
+                if tradeWho == tradeData["player"]["name"] then
+                    raiders[id]["status"] = true
+                    GUI:UpdateTradeTableFromDatabase()
+                end
             end
         end
     end)
-
 end
 
 local function RemoveAll(item)
@@ -152,6 +145,9 @@ function GUI:UpdateSummary()
                            .. L["Per Member"] .. " " .. GetMoneyString(avg)
                         )
     self.avg = avg
+    self.revenue = revenue
+    self.profit = profit
+    GUI:UpdateTradeTableFromDatabase()
 end
 
 function GUI:GetSplitNumber()
@@ -314,6 +310,13 @@ function GUI:Init()
     f:SetScript("OnDragStop", f.StopMovingOrSizing)
     f:SetScript("OnMouseDown", clearAllFocus)
     f:Hide()
+
+
+    f:RegisterEvent("RAID_ROSTER_UPDATE");
+    f:SetScript("OnEvent", function(self, event, ...)
+        print(event)
+    end)
+
 
     self.mainframe = f
 
@@ -582,7 +585,7 @@ function GUI:Init()
             s:SetValue(100)
 
             local g = CreateFrame("Button",nil, bf,"GameMenuButtonTemplate")
-            g:SetPoint("BOTTOMRIGHT", s , "BOTTOMLEFT", 0, -40)
+            g:SetPoint("BOTTOMRIGHT", s , "BOTTOMLEFT", -30, -40)
             g:SetHeight(20)
             g:SetWidth(50)
             g:SetText("50")
@@ -597,8 +600,16 @@ function GUI:Init()
             f:SetScript("OnClick", function()
                 s:SetValue(100)
             end)
+            local h = CreateFrame("Button",nil, bf,"GameMenuButtonTemplate")
+            h:SetPoint("LEFT", f , "RIGHT")
+            h:SetHeight(20)
+            h:SetWidth(50)
+            h:SetText("250")
+            h:SetScript("OnClick", function()
+                s:SetValue(250)
+            end)
             local z = CreateFrame("Button",nil, bf,"GameMenuButtonTemplate")
-            z:SetPoint("LEFT", f , "RIGHT")
+            z:SetPoint("LEFT", h , "RIGHT")
             z:SetHeight(20)
             z:SetWidth(50)
             z:SetText("500")
@@ -1228,7 +1239,9 @@ function GUI:Init()
             flaskCost:SetScript("OnEnterPressed", flaskCost.ClearFocus)
             flaskCost:SetScript("OnEscapePressed", flaskCost.ClearFocus)
             flaskCost:SetText(0)
-            flaskCost:SetScript("OnTextChanged", function() self.flaskCost = tonumber(flaskCost:GetText()) end)
+            flaskCost:SetScript("OnTextChanged", function()
+                self.flaskCost = tonumber(flaskCost:GetText())
+            end)
             flaskCost.text = flaskCost:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
             flaskCost.text:SetPoint("LEFT", flaskCost, -20, 0)
             flaskCost.text:SetText("=")
@@ -1246,7 +1259,7 @@ function GUI:Init()
             updateRaidList:SetWidth(80)
             updateRaidList:SetHeight(30)
             updateRaidList:SetPoint("TOPRIGHT", tradeTest, -40, -25);
-            updateRaidList:SetText(L["UpdateList"])
+            updateRaidList:SetText(L["DropList"])
             updateRaidList:SetScript("OnClick", function()
                 GUI:getCurrentRaidList(self)
             end)
@@ -1317,6 +1330,44 @@ function GUI:Init()
             end)
         end)
 
+        local valueTypeMenuCtx = {}
+        local setCostType = function(t)
+            local tradeData = valueTypeMenuCtx.entry
+            tradeData["bonustype"] = t
+            self:UpdateTradeTableFromDatabase()
+        end
+
+        local valueTypeMenu = {
+            {
+                bonustype = "GOLD",
+                text = GOLD_AMOUNT_TEXTURE_STRING:format(""),
+                func = function()
+                    setCostType("GOLD")
+                end,
+            },
+            {
+                bonustype = "PROFIT_PERCENT",
+                text =  DIM_GREEN_FONT_COLOR:WrapTextInColorCode(" % " .. L["Net Profit"]),
+                func = function()
+                    setCostType("PROFIT_PERCENT")
+                end,
+            },
+            {
+                bonustype = "REVENUE_PERCENT",
+                text = LIGHTBLUE_FONT_COLOR:WrapTextInColorCode(" % " .. L["Revenue"]),
+                func = function()
+                    setCostType("REVENUE_PERCENT")
+                end,
+            },
+            {
+                text = CANCEL,
+                notCheckable = true,
+                func = function(self)
+                    CloseDropDownMenus()
+                end,
+            },
+        }
+
         local bonusUpdate = CreateCellUpdateTest(function(cellFrame, tradeData, idx)
 
             cellFrame.curEntry = tradeData
@@ -1333,37 +1384,48 @@ function GUI:Init()
                 cellFrame.textBox:SetScript("OnEnterPressed", cellFrame.textBox.ClearFocus)
                 cellFrame.textBox:SetScript("OnEscapePressed", cellFrame.textBox.ClearFocus)
                 cellFrame.money = cellFrame.textBox:CreateFontString(nil, "OVERLAY","GameFontNormal")
-                cellFrame.money:SetText(GOLD_AMOUNT_TEXTURE_STRING:format(""))
                 cellFrame.money:SetPoint("LEFT", cellFrame.textBox, "RIGHT", 1, 0)
             end
 
-            cellFrame.textBox:SetText(tostring(tradeData["bonus"]/10000 or 0))
-            --local type = "GOLD"
-            --
-            --if type == "PROFIT_PERCENT" then
-            --    cellFrame.text:SetText(DIM_GREEN_FONT_COLOR:WrapTextInColorCode("%"))
-            --elseif type == "REVENUE_PERCENT" then
-            --    cellFrame.text:SetText(LIGHTBLUE_FONT_COLOR:WrapTextInColorCode("%"))
-            --elseif type == "MUL_AVG" then
-            --    cellFrame.text:SetText("*")
-            --else
-            --    -- GOLD by default
-            --cellFrame.text:SetText(GOLD_AMOUNT_TEXTURE_STRING:format(""))
-            --end
-            --
-            cellFrame:SetScript("OnClick", nil)
+            cellFrame.textBox:SetText(tostring(tradeData["bonus"] or 0))
+
+            local type = tradeData["bonustype"]
+
+
+            if type == "PROFIT_PERCENT" then
+                cellFrame.money:SetText(DIM_GREEN_FONT_COLOR:WrapTextInColorCode("%"))
+            elseif type == "REVENUE_PERCENT" then
+                cellFrame.money:SetText(LIGHTBLUE_FONT_COLOR:WrapTextInColorCode("%"))
+            elseif type == "GOLD" then
+                -- GOLD by default
+                cellFrame.money:SetText(GOLD_AMOUNT_TEXTURE_STRING:format(""))
+            end
+
             cellFrame:SetScript("OnEnter", nil)
-            --
+
+            cellFrame:SetScript("OnClick", function()
+                valueTypeMenuCtx.entry = tradeData
+                for _, m in pairs(valueTypeMenu) do
+                    m.checked = m.bonustype == type
+                end
+                EasyMenu(valueTypeMenu, menuFrame, "cursor", 0 , 0, "MENU");
+            end)
+
+
             cellFrame.textBox:SetScript("OnTextChanged", function(self, userInput)
                 local t = cellFrame.textBox:GetText()
                 local v = tonumber(t) or 0
+
                 if tradeData["bonus"] == v then
                     return
                 end
+
                 if v < 0.0001 then
                     v = 0
                 end
-                tradeData["bonus"] = v * 100 * 100
+
+                tradeData["bonus"] = v
+
                 GUI:UpdateTradeTableFromDatabase()
             end)
         end)
@@ -1383,9 +1445,18 @@ function GUI:Init()
         end)
 
         local totalUpdate = CreateCellUpdateTest(function(cellFrame, tradeData)
+
+            local flaskCost = self.flaskCost or 0
+            if tradeData["bonustype"] == "GOLD" then
+                tradeData["total"] = tradeData["bonus"] * 100 * 100
+            elseif tradeData["bonustype"] == "REVENUE_PERCENT" then
+                tradeData["total"] = self.revenue / 100 * tradeData["bonus"]
+            elseif tradeData["bonustype"] == "PROFIT_PERCENT" then
+                tradeData["total"] = self.profit / 100 * tradeData["bonus"]
+            end
             tradeData["total"] = tradeData["proportion"] +
-                    tradeData["bonus"] + tradeData["flasks"] *
-                    self.flaskCost * 100 * 100
+                    tradeData["total"] + tradeData["flasks"] *
+                    flaskCost * 100 * 100
             cellFrame.text:SetText(GetMoneyString(tradeData["total"]))
             cellFrame.text:SetTextColor(1,1,1)
         end)
@@ -1413,6 +1484,7 @@ function GUI:Init()
                 cellFrame.minusBox:SetSize(25, 25)
             end
 
+            cellFrame.minusBox:SetChecked(tradeData["minus"])
             cellFrame.minusBox:SetScript("OnClick", function()
                 GUI:HelpMinusFunction(idx, cellFrame.minusBox:GetChecked())
             end)

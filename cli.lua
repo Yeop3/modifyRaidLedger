@@ -168,7 +168,8 @@ do
 
                     if lastzone ~= zone then
                         if #Database:GetCurrentLedger()["items"] > 0 then
-                            cleartoast:AddAlert()
+                            --cleartoast:AddAlert()
+                            StaticPopup_Show("RAIDLEDGER_CLEARMSG")
                         end
                     end
 

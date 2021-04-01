@@ -119,7 +119,7 @@ L["TradeStatus"] = true
 L["Clear garbage"] = true
 L["Remove all uncommitted records?"] = true
 L["Flasks"] = true
-L["UpdateList"] = true
+L["DropList"] = true
 L["Total"] = true
 
 elseif locale == 'deDE' then
@@ -1380,7 +1380,7 @@ L["Bonus"] = "Бонус"
 L["TradeStatus"] = "Статус"
 L["Remove all uncommitted records?"] = "Удалить все незафиксированные записи?"
 L["Flasks"] = "Фласки"
-L["UpdateList"] = "Обновить"
+L["DropList"] = "Сбросить"
 L["Total"] = "Всего"
 
 elseif locale == 'zhCN' then

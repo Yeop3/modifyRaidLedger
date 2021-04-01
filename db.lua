@@ -110,10 +110,11 @@ function db:FillingTradeTable()
                 }
             } ,
             minus = false,
-            proportion = 0.0,
+            proportion = 0,
             flasks = 0,
-            bonus = 0.0,
-            total = 0.0
+            bonus = 0,
+            bonustype = "GOLD",
+            total = 0
         })
     end
     table.sort(traders["raiders"], sortTable)
